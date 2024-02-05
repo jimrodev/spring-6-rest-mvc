@@ -1,0 +1,88 @@
+spring:
+  datasource:
+    username: restadmin
+    password: password
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/restdb?useUicode=true&characterEncoding=UTF-8&serverTimezone=UTC
+    hikari:
+      pool-name: restDb-Pool
+      maximum-pool-size: 5
+      data-source-properties:
+        cache-prep-stmts: true
+        prep-stmt-cache-size: 250
+        prep-stmt-cache-sql-limit: 2048
+        use-server-prep-stmts: true
+        use-local-session-state: true
+        rewrite-batched-statements: true
+        cache-result-set-metadata: true
+        cache-server-configuration: true
+        elide-set-auto-commits: true
+        maintain-time-stats: false
+  # Si no utilizamos un .yml para la configuración, NOTA - Las propiedades no están separadas con - * cachePrepStmts=true *
+  # spring.datasource.hikari.pool-name=RestDB-Pool
+  # spring.datasource.hikari.maximum-pool-size=5
+  # spring.datasource.hikari.data-source-properties.cachePrepStmts=true
+  # spring.datasource.hikari.data-source-properties.prepStmtCacheSize=250
+  # DOC spring.io
+  # https://docs.spring.io/spring-boot/docs/current/reference/html/application-properties.html#appendix.application-properties.data
+
+  # V2017-2018 - Establecemos el username and password en vez de dejar que springboot lo auto-genere por nosotros
+  security:
+    user:
+      name: user1
+      password: password
+
+  jpa:
+    database: mysql
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+# Show SQL in the traces
+        show_sql: true
+# Format SQL
+        format_sql: true
+# Video 128 - SOLO ACTIVAR UNA SOLA VEZ, luego commentar !!!
+# Herramienta que genera los scripts de creación de la bbdd, por reflection desde las Entities
+#      jakarta:
+#        persistence:
+#          schema-generation:
+#            scripts:
+#              action: drop-and-create
+#              create-source: metadata
+#              drop-target: drop-and-create.sql
+#              create-target: drop-and-create.sql
+
+    hibernate:
+# VIDEO 133
+# Al utilizar Flyway ya NO dejamos que Hibernate maneje el Schema de la BBDD * update *, a partir de ahora lo gestiona Flyway
+# Hibernate solo validará el esquema creado por Flyway
+      ddl-auto: validate
+
+  flyway:
+    enabled: true
+
+# Show Bind SQL Values - * Muy Importante * Solo para depuración, nunca en PRO
+# Muestra los valores de los parámetros que se pasan a la SQL
+logging:
+  level:
+# El logging se hace a nivel de package 'hibernate.orm.jdbc.bind' y los valores permitidos son:
+# DEBUG
+# ERROR
+# FATAL
+# INFO
+# OFF
+# TRACE
+# WARN
+#2024-01-19T10:42:59.142+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [1] as [VARCHAR] - [Galaxy Cat]
+#2024-01-19T10:42:59.142+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [2] as [SMALLINT] - [8]
+#2024-01-19T10:42:59.143+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [3] as [TIMESTAMP] - [2024-01-19T10:42:59.077401100]
+#2024-01-19T10:42:59.144+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [4] as [NUMERIC] - [12.99]
+#2024-01-19T10:42:59.145+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [5] as [INTEGER] - [122]
+#2024-01-19T10:42:59.145+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [6] as [VARCHAR] - [12356]
+#2024-01-19T10:42:59.145+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [7] as [TIMESTAMP] - [2024-01-19T10:42:59.077401100]
+#2024-01-19T10:42:59.146+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [8] as [INTEGER] - [0]
+#2024-01-19T10:42:59.146+01:00 TRACE 19552 --- [           main] org.hibernate.orm.jdbc.bind              : binding parameter [9] as [BINARY] - [3603eaec-eb85-4250-bc68-b751fcc72bbd]
+#   org.hibernate.orm.jdbc.bind: trace
+    guru.springframework: debug
+    org.springframework.security: trace
+

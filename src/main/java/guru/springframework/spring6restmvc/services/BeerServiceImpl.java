@@ -4,6 +4,8 @@ import guru.springframework.spring6restmvc.exceptions.NotFoundException;
 import guru.springframework.spring6restmvc.model.BeerDTO;
 import guru.springframework.spring6restmvc.model.BeerStyle;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -63,8 +65,13 @@ public class BeerServiceImpl implements BeerService {
     }
 
     @Override
-    public List<BeerDTO> list(){
-        return new ArrayList<>(beerMap.values());
+    // VIDEO - 159 - RETURN - Page<BeerDTO>
+    //public Page<BeerDTO> list(){
+    public Page<BeerDTO> list(String name, BeerStyle style, Boolean showInventory, Integer pageNumber, Integer pageSize){
+        // VIDEO - 159 - RETURN - Page<BeerDTO>
+        // return new ArrayList<>(beerMap.values());
+        // Aquí no hacemos ninguna funcionalidad de paginacion - sólo para que funcione el test
+        return new PageImpl<>(new ArrayList<>(beerMap.values()));
     }
 
     // Optional

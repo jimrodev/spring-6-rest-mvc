@@ -1,20 +1,17 @@
 package guru.springframework.spring6restmvc.controllers;
 
-import guru.springframework.spring6restmvc.exceptions.NotFoundException;
 import guru.springframework.spring6restmvc.model.BeerDTO;
+import guru.springframework.spring6restmvc.model.BeerStyle;
 import guru.springframework.spring6restmvc.services.BeerService;
-import lombok.NonNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.context.annotation.Profile;
+import org.springframework.data.domain.Page;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
 import java.util.UUID;
 
 @Slf4j
@@ -47,10 +44,19 @@ public class BeerController {
     // Jackson para producir un JSON
     // @RequestMapping(method = RequestMethod.GET)
     @GetMapping(BEER_PATH) // @GetMapping
-    public List<BeerDTO> list(){
+    // VIDEO - 159 - RETURN - Page<BeerDTO>
+    // public List<BeerDTO> list()
+    public Page<BeerDTO> list(@RequestParam(required = false) String name,
+                              @RequestParam(required = false) BeerStyle style,
+                              @RequestParam(required = false) Boolean showInventory,
+                              // VIDEO 157 - Paging and Sorting
+                              @RequestParam(required = false) Integer pageNumber,
+                              @RequestParam(required = false) Integer pageSize){
 
         //return new ResponseEntity<>(beerService.list(), HttpStatus.OK);
-        return beerService.list();
+        // VIDEO - 159 - RETURN - Page<BeerDTO>
+        // return beerService.list();
+        return beerService.list(name, style, showInventory, pageNumber, pageSize);
     }
 
     // @RequestMapping(value = {beerId}, method = RequestMethod.GET)

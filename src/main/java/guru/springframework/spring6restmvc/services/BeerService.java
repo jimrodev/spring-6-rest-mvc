@@ -1,13 +1,17 @@
 package guru.springframework.spring6restmvc.services;
 
 import guru.springframework.spring6restmvc.model.BeerDTO;
+import guru.springframework.spring6restmvc.model.BeerStyle;
+import org.springframework.data.domain.Page;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface BeerService {
 
-    List<BeerDTO> list();
+    // Video - 148 - 150
+    // VIDEO - 159 - RETURN - Page<BeerDTO>
+    // List<BeerDTO> list();
+    Page<BeerDTO> list(String name, BeerStyle style, Boolean showInventory, Integer pageNumber, Integer pageSize);
 
     // Optional
     // MEJOR enfoque el de poner el optional en la capa de datos DAO y que sea el * @Services * el que devuelva la excepción ?? -> spring-boot-example

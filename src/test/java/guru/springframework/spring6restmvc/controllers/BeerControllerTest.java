@@ -1,13 +1,11 @@
 package guru.springframework.spring6restmvc.controllers;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import guru.springframework.spring6restmvc.config.SpringSecurityConfig;
 import guru.springframework.spring6restmvc.exceptions.NotFoundException;
-import guru.springframework.spring6restmvc.mappers.BeerMapper;
 import guru.springframework.spring6restmvc.model.BeerDTO;
 import guru.springframework.spring6restmvc.services.BeerService;
 import guru.springframework.spring6restmvc.services.BeerServiceImpl;
-import org.aspectj.weaver.ast.Not;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -15,11 +13,12 @@ import org.mockito.Captor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.context.annotation.Profile;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.access.SecurityConfig;
+import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.web.bind.MethodArgumentNotValidException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.core.Is.is;
@@ -28,13 +27,15 @@ import static org.mockito.BDDMockito.given;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 // CONTROLLER TEST
 // Test CON TODO EL SPRING CONTEXT CARGADO @SpringBootTest
@@ -58,7 +59,11 @@ class BeerControllerTest {
 // Test SIN EL SPRING CONTEXT CARGADO (Test Splice @WebMvcTest)
 // Indicamos la clase que estamos probando BeerController.class SI-NO, intentará proporcionar TODOS los controller que encuentre en el path
 @WebMvcTest(BeerController.class)
+@Import(SpringSecurityConfig.class)
 class BeerControllerTest {
+
+    static final String USERNAME = "user1";
+    static final String PASSWORD = "password";
 
     @Autowired
     MockMvc mockMvc;
@@ -96,7 +101,7 @@ class BeerControllerTest {
 
         // Objetenemos un objeto Beer del map que se creca en el constructor de beerServiceImpl
         // Pero podemos crear la instancia manualmente Beer testBeer = new Beer() ....
-        BeerDTO testBeerDTO = beerServiceImpl.list().get(0);
+        BeerDTO testBeerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         // given() from import static org.mockito.BDDMockito.given
         // INDICAMOS A Mockito que dada una llamada a beerService.getBeerById(ANY ID) devolverá el objeto testBeer recuperado antes
@@ -114,6 +119,7 @@ class BeerControllerTest {
         // get(), status(), content(), jsonPath() from import static org.springframework.test.web.servlet.* [.request.MockMvcRequestBuilders/.result.MockMvcResultMatchers.]
         // is() from import static org.hamcrest.core.Is.is
         mockMvc.perform(get(BeerController.BEER_PATH_ID, testBeerDTO.getId())  //get("/api/v1/beer/" + UUID.randomUUID())
+                        .with(httpBasic(USERNAME, PASSWORD))
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))            // MediaType.APPLICATION_JSON_UTF8     Para que falle y ver la traza
@@ -125,25 +131,30 @@ class BeerControllerTest {
     void testList() throws Exception {
         // Objetenemos un objeto Beer del map que se creca en el constructor de beerServiceImpl
         // Pero podemos crear la instancia manualmente Beer testBeer = new Beer() ....
-        BeerDTO testBeerDTO = beerServiceImpl.list().get(0);
+        BeerDTO testBeerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         // INDICAMOS A Mockito que dada una llamada a beerService.listBeer() devolverá la lista que genera el constructor de beerServiceImpl
         // O cualquier Lista de Beer que creamos, private Map<UUID, Beer> beerMap;
-        given(beerService.list()).willReturn(beerServiceImpl.list());
+
+        //given(beerService.list(null, null, false)).willReturn(beerServiceImpl.list(null, null, false));
+        // PORQUÉ SI LOS PARÁMETROS SON NULL, no funciona el Test???
+        given(beerService.list(any(), any(), any(), any(), any())).willReturn(beerServiceImpl.list(null, null, false, 1, 25));
 
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .accept(MediaType.APPLICATION_JSON))
+                        // V2019-220 LE pasamos las credenciales * CUIDADO * en los test el profile es * default * coge la configuración del application.properties no del .ym.l
+                        .with(httpBasic(USERNAME, PASSWORD))
+                .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
-                .andExpect(jsonPath("$.length()", is(3)));  // is(4) para que falle y ver la traza
+                .andExpect(jsonPath("$.content.length()", is(3)));  // is(4) para que falle y ver la traza // V159 - Aquí sustituimos la expresión "$.size()" por $.content.size() ya que devolvemos el objeto PAGE
     }
 
     @Test
     void testCreate() throws Exception {
-        BeerDTO beerDTO = beerServiceImpl.list().get(1);
+        BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(1);
         // CUIDADO - Si devolvemos beerServiceImpl.listBeers().get(1) y lo modificamos, esas modificaciones se almacenan en el HashMap y da error de null el getId()
-        //beer.setVersion(null);
-        //beer.setId(null);
+        // beer.setVersion(null);
+        // beer.setId(null);
 
         // Esto no es necesario si incluimos ObjectMapper en el Spring Context @Autowire
         // ObjectMapper objectMapper = new ObjectMapper();
@@ -151,9 +162,24 @@ class BeerControllerTest {
         // IMPORTANTE - Mejor añadir el ObjectMapper al Spring context así tenemos la misma configuración para el Controller y los Test
         //System.out.println(objectMapper.writeValueAsString(beer));
 
-        given(beerService.save(any(BeerDTO.class))).willReturn(beerServiceImpl.list().get(1));
+        given(beerService.save(any(BeerDTO.class))).willReturn(beerServiceImpl.list(null, null, false, 1, 25).getContent().get(1));
 
         mockMvc.perform(post(BeerController.BEER_PATH)
+                        // V2019-220 LE pasamos las credenciales * CUIDADO * en los test el profile es * default * coge la configuración del application.properties no del .ym.l
+                        // ERROR: 403 NO 401
+                        // java.lang.AssertionError: Status expected:<201> but was:<403>
+                        // ACTIVANDO LA TRAZA: logging.level.org.springframework.security=trace
+                        // 2024-02-05T12:10:23.305+01:00 TRACE 13828 --- [           main] o.s.security.web.FilterChainProxy        : Invoking CsrfFilter (5/15)
+                        // 2024-02-05T12:10:23.312+01:00 DEBUG 13828 --- [           main] o.s.security.web.csrf.CsrfFilter         : Invalid CSRF token found for http://localhost/api/v1/beer
+                        // SOLUCIÓN: Disable CSFR
+                        // SpringSecurityConfig class, desabilitamos el csfr para las url "/api/**"
+                        // IMPORTATNE: Al deshabilitar el CSFR, las credenciales que le pasamos las ignora - Incluso si van mal
+                        // Porque se sobre escribe la configuración por defecto de Spring Security, la volvemos a habilitar en la clase SpringSecurityConfig
+                        //  http.authorizeHttpRequests()
+                        //                .anyRequest().authenticated()
+                        //                .and().httpBasic(Customizer.withDefaults())
+                        // ASI LAS TENEMOS QUE VOLVER A PASAR
+                        .with(httpBasic(USERNAME, PASSWORD))
                         .accept(MediaType.APPLICATION_JSON)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(beerDTO)))
@@ -165,12 +191,13 @@ class BeerControllerTest {
     @Test
     void testUpdate() throws Exception {
 
-        BeerDTO beerDTO = beerServiceImpl.list().get(0);
+        BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         // Aquí le decimos al service que devuelva una instnacia de BeerDTO
         given(beerService.updateById(any(), any())).willReturn(beerDTO);
 
         mockMvc.perform(put(BeerController.BEER_PATH_ID, beerDTO.getId())
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerDTO)))
@@ -185,9 +212,10 @@ class BeerControllerTest {
     @Test
     void testDelete() throws Exception {
 
-        BeerDTO beerDTO = beerServiceImpl.list().get(0);
+        BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         mockMvc.perform(delete(BeerController.BEER_PATH_ID, beerDTO.getId())
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -211,12 +239,13 @@ class BeerControllerTest {
     @Test
     void testPatch() throws Exception {
 
-        BeerDTO beerDTO = beerServiceImpl.list().get(0);
+        BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         Map<String, Object> beerMap = new HashMap<>();
         beerMap.put("beerName", "New Name");
 
         mockMvc.perform(patch(BeerController.BEER_PATH_ID, beerDTO.getId())
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerMap)))
@@ -245,19 +274,21 @@ class BeerControllerTest {
         // @ExceptionHander(NotFoundException.class)
         // Anotamos un método dentro del controller BeerController para que maneje este tipo de excepción dentro de esta clase, SOLO ESTE TIPO Y SOLO DENTRO DE ESTE CONTROLLER
 
-        mockMvc.perform(get(BeerController.BEER_PATH_ID, UUID.randomUUID()))
+        mockMvc.perform(get(BeerController.BEER_PATH_ID, UUID.randomUUID())
+                .with(httpBasic(USERNAME, PASSWORD)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void testUpdateByIdThrowsNotFoundException() throws Exception {
 
-        BeerDTO beerDTO = beerServiceImpl.list().get(0);
+        BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         // Usamos doThrow ya que given no acepta * void methods *
         doThrow(new NotFoundException()).when(beerService).updateById(any(UUID.class),any(BeerDTO.class));
 
         mockMvc.perform(put(BeerController.BEER_PATH_ID, UUID.randomUUID())
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerDTO)))
@@ -271,6 +302,7 @@ class BeerControllerTest {
         doThrow(new NotFoundException()).when(beerService).deleteById(any(UUID.class));
 
         mockMvc.perform(delete(BeerController.BEER_PATH_ID, UUID.randomUUID())
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound());
@@ -286,9 +318,10 @@ class BeerControllerTest {
 
         BeerDTO beer = BeerDTO.builder().build();
 
-        given(beerService.save(any(BeerDTO.class))).willReturn(beerServiceImpl.list().get(1));
+        given(beerService.save(any(BeerDTO.class))).willReturn(beerServiceImpl.list(null, null, false, 1, 25).getContent().get(1));
 
         MvcResult mvcResult = mockMvc.perform(post(BeerController.BEER_PATH)
+                        .with(httpBasic(USERNAME, PASSWORD))
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beer)))
