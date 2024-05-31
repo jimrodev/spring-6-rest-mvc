@@ -28,9 +28,14 @@ spring:
 
   # V2017-2018 - Establecemos el username and password en vez de dejar que springboot lo auto-genere por nosotros
   security:
-    user:
-      name: user1
-      password: password
+  # V239 COMENTAMOS LA CONFIGURACIÓN BASIC ANTERIOR PARA SUSTITUIRLA POR EL * RESOURCE SERVER *
+#    user:
+#      name: user1
+#      password: password
+    oauth2:
+      resourceserver:
+        jwt:
+          issuer-uri: http://localhost:9000
 
   jpa:
     database: mysql

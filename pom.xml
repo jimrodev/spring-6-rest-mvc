@@ -43,6 +43,10 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-security</artifactId>
         </dependency>
+        <dependency> <!-- V238 ADD RESOURCE SERVER DEPENDENCY -->
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-oauth2-resource-server</artifactId>
+        </dependency>
         <dependency>
             <groupId>mysql</groupId>
             <artifactId>mysql-connector-java</artifactId>
@@ -71,11 +75,11 @@
             <artifactId>opencsv</artifactId>
             <version>5.7.0</version>
         </dependency>
-        <!-- <dependency>
+        <dependency> <!-- For * Mono.just() * import reactor.core.publisher.Mono; -->
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-webflux</artifactId>
             <scope>test</scope>
-        </dependency> -->
+        </dependency>
     </dependencies>
 
     <build>

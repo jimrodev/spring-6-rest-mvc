@@ -1,6 +1,7 @@
 package guru.springframework.spring6restmvc.controllers;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import guru.springframework.spring6restmvc.config.MockOauthToken;
 import guru.springframework.spring6restmvc.config.SpringSecurityConfig;
 import guru.springframework.spring6restmvc.exceptions.NotFoundException;
 import guru.springframework.spring6restmvc.model.BeerDTO;
@@ -15,8 +16,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
-import org.springframework.security.access.SecurityConfig;
-import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -25,17 +24,16 @@ import static org.hamcrest.core.Is.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
-import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 // CONTROLLER TEST
 // Test CON TODO EL SPRING CONTEXT CARGADO @SpringBootTest
@@ -56,14 +54,14 @@ class BeerControllerTest {
 }
 */
 // CONTROLLER TEST
-// Test SIN EL SPRING CONTEXT CARGADO (Test Splice @WebMvcTest)
+// Test SIN EL SPRING CONTEXT CARGADO (Test slice @WebMvcTest)
 // Indicamos la clase que estamos probando BeerController.class SI-NO, intentará proporcionar TODOS los controller que encuentre en el path
 @WebMvcTest(BeerController.class)
 @Import(SpringSecurityConfig.class)
 class BeerControllerTest {
 
-    static final String USERNAME = "user1";
-    static final String PASSWORD = "password";
+    private static final String USERNAME = "user1";
+    private static final String PASSWORD = "password";
 
     @Autowired
     MockMvc mockMvc;
@@ -119,7 +117,9 @@ class BeerControllerTest {
         // get(), status(), content(), jsonPath() from import static org.springframework.test.web.servlet.* [.request.MockMvcRequestBuilders/.result.MockMvcResultMatchers.]
         // is() from import static org.hamcrest.core.Is.is
         mockMvc.perform(get(BeerController.BEER_PATH_ID, testBeerDTO.getId())  //get("/api/v1/beer/" + UUID.randomUUID())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))            // MediaType.APPLICATION_JSON_UTF8     Para que falle y ver la traza
@@ -141,8 +141,10 @@ class BeerControllerTest {
         given(beerService.list(any(), any(), any(), any(), any())).willReturn(beerServiceImpl.list(null, null, false, 1, 25));
 
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        // V2019-220 LE pasamos las credenciales * CUIDADO * en los test el profile es * default * coge la configuración del application.properties no del .ym.l
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V2019-220 LE pasamos las credenciales * CUIDADO * en los test el profile es * default * coge la configuración del application.properties no del application-local.ym
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(content().contentType(MediaType.APPLICATION_JSON))
@@ -169,8 +171,8 @@ class BeerControllerTest {
                         // ERROR: 403 NO 401
                         // java.lang.AssertionError: Status expected:<201> but was:<403>
                         // ACTIVANDO LA TRAZA: logging.level.org.springframework.security=trace
-                        // 2024-02-05T12:10:23.305+01:00 TRACE 13828 --- [           main] o.s.security.web.FilterChainProxy        : Invoking CsrfFilter (5/15)
-                        // 2024-02-05T12:10:23.312+01:00 DEBUG 13828 --- [           main] o.s.security.web.csrf.CsrfFilter         : Invalid CSRF token found for http://localhost/api/v1/beer
+                        // 2024-02-05T12:10:23.305+01:00 TRACE 13828 --- [main] o.s.security.web.FilterChainProxy : Invoking CsrfFilter (5/15)
+                        // 2024-02-05T12:10:23.312+01:00 DEBUG 13828 --- [main] o.s.security.web.csrf.CsrfFilter  : Invalid CSRF token found for http://localhost/api/v1/beer
                         // SOLUCIÓN: Disable CSFR
                         // SpringSecurityConfig class, desabilitamos el csfr para las url "/api/**"
                         // IMPORTATNE: Al deshabilitar el CSFR, las credenciales que le pasamos las ignora - Incluso si van mal
@@ -179,7 +181,9 @@ class BeerControllerTest {
                         //                .anyRequest().authenticated()
                         //                .and().httpBasic(Customizer.withDefaults())
                         // ASI LAS TENEMOS QUE VOLVER A PASAR
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .accept(MediaType.APPLICATION_JSON)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(beerDTO)))
@@ -197,7 +201,9 @@ class BeerControllerTest {
         given(beerService.updateById(any(), any())).willReturn(beerDTO);
 
         mockMvc.perform(put(BeerController.BEER_PATH_ID, beerDTO.getId())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerDTO)))
@@ -215,7 +221,9 @@ class BeerControllerTest {
         BeerDTO beerDTO = beerServiceImpl.list(null, null, false, 1, 25).getContent().get(0);
 
         mockMvc.perform(delete(BeerController.BEER_PATH_ID, beerDTO.getId())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk());
 
@@ -245,7 +253,22 @@ class BeerControllerTest {
         beerMap.put("beerName", "New Name");
 
         mockMvc.perform(patch(BeerController.BEER_PATH_ID, beerDTO.getId())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V2019-220
+                        // .with(httpBasic(USERNAME, PASSWORD))
+                        // V241
+                        // Configuramos la autenticación Oauth 2.0 con * SPRING SECURITY TESTING UTILITIES * Hacemos Mock de la seguridad
+                        // SecurityMockMvcRequestPostProcessors.JwtRequestPostProcessor
+                        // Configuramos un * Token JWT * muy simple para las pruebas para cumplir con la configuración
+                        // spring.security.oauth2.resourceserver.jwt.issuer-uri=http://localhost:9000
+                        // * DE FORMA EXPLICITA * indicamos que se use el Token JWT para este TEST
+                        .with(jwt().jwt(jwt -> {
+                            jwt.claims(claims -> {
+                               claims.put("scope", "message-read");
+                               claims.put("scope", "message-write");
+                            })
+                                    .subject("messaging-client")
+                                    .notBefore(Instant.now().minusSeconds(5L));
+                        }))
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerMap)))
@@ -275,7 +298,9 @@ class BeerControllerTest {
         // Anotamos un método dentro del controller BeerController para que maneje este tipo de excepción dentro de esta clase, SOLO ESTE TIPO Y SOLO DENTRO DE ESTE CONTROLLER
 
         mockMvc.perform(get(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                .with(httpBasic(USERNAME, PASSWORD)))
+                // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                //.with(httpBasic(USERNAME, PASSWORD))
+                .with(MockOauthToken.jwtRequestPostProcessor))
                 .andExpect(status().isNotFound());
     }
 
@@ -288,7 +313,9 @@ class BeerControllerTest {
         doThrow(new NotFoundException()).when(beerService).updateById(any(UUID.class),any(BeerDTO.class));
 
         mockMvc.perform(put(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerDTO)))
@@ -302,7 +329,9 @@ class BeerControllerTest {
         doThrow(new NotFoundException()).when(beerService).deleteById(any(UUID.class));
 
         mockMvc.perform(delete(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isNotFound());
@@ -321,7 +350,9 @@ class BeerControllerTest {
         given(beerService.save(any(BeerDTO.class))).willReturn(beerServiceImpl.list(null, null, false, 1, 25).getContent().get(1));
 
         MvcResult mvcResult = mockMvc.perform(post(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beer)))

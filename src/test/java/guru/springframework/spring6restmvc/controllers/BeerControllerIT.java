@@ -5,15 +5,15 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import guru.springframework.spring6restmvc.config.MockOauthToken;
+import guru.springframework.spring6restmvc.config.RealOauthToken;
 import guru.springframework.spring6restmvc.entities.Beer;
 import guru.springframework.spring6restmvc.exceptions.NotFoundException;
 import guru.springframework.spring6restmvc.mappers.BeerMapper;
 import guru.springframework.spring6restmvc.model.BeerDTO;
 import guru.springframework.spring6restmvc.model.BeerStyle;
 import guru.springframework.spring6restmvc.repositories.BeerRepository;
-import lombok.val;
 import org.hamcrest.core.IsNull;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Disabled;
@@ -41,6 +41,7 @@ import org.springframework.util.Base64Utils;
 import org.springframework.util.LinkedMultiValueMap;
 import org.springframework.util.MultiValueMap;
 import org.springframework.web.context.WebApplicationContext;
+import org.springframework.web.reactive.function.BodyInserters;
 import org.springframework.web.util.UriComponents;
 import org.springframework.web.util.UriComponentsBuilder;
 import reactor.core.publisher.Mono;
@@ -52,7 +53,6 @@ import java.util.*;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.hamcrest.core.Is.is;
-import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -77,6 +77,9 @@ class BeerControllerIT {
 
     static final String BASIC_AUTH_HEADER = "basic " + Base64Utils.encodeToString((USERNAME + ":" + PASSWORD).getBytes());
 
+    // Para los test que estamos atacando con WebTestClient en el @BeforeEach cogemos el primer ID de la bbdd * real * MySql y no de la H2 (bbdd que se usa en los test)
+    UUID Id;
+
     @Autowired
     private WebTestClient webTestClient;
 
@@ -95,6 +98,8 @@ class BeerControllerIT {
     // Es una referencia al Web Application Context, recuerda que hemos inicializado el Web Server con: @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
     @Autowired
     WebApplicationContext wac;
+
+    JsonNode tokenJwt;
 
     // Aquí vamos a usar MockMvc para hacer las peticiones
     MockMvc mockMvc;
@@ -158,10 +163,39 @@ class BeerControllerIT {
         mockMvc = MockMvcBuilders.webAppContextSetup(wac)
                 .apply(springSecurity())
                 .build();
+
+        // Obtenemos un token real para las invocaciones con WebTestClient
+        tokenJwt = RealOauthToken.getNewRealAccessToken(webTestClient);
+
+        // Recogemos el Id del primer registro de la bbdd
+        MultiValueMap requestParams = new LinkedMultiValueMap<String, String>();
+        requestParams.add("pageNumber", "1");
+        requestParams.add("pageSize", "1");
+
+        EntityExchangeResult exchangeResult = webTestClient.get()
+                .uri(uriBuilder -> uriBuilder.path(BeerController.BEER_PATH).queryParams(requestParams).build()) //.uri(uri.toUri())   // V159 - //.uri(BeerController.BEER_PATH)
+                .accept(MediaType.APPLICATION_JSON)
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<JacksonPage<BeerDTO>>() {}) //.expectBodyList(new ParameterizedTypeReference<BeerDTO>(){})
+                .returnResult();
+
+        Page<BeerDTO> allBeers = (Page<BeerDTO>) exchangeResult.getResponseBody();
+
+        Id = allBeers.getContent().get(0).getId();
     }
+
     @Test
-    void testGetById() {
-        Beer beer = beerRepository.findAll().get(0);
+    void testGetById() throws Exception {
+
+        // PROBLEMA:
+        // V242 - Al llamar al micro real con WebTestClien y la authenticación Oaut 2.0 * NO podemos recoger el Id de beerRepository *
+        // Porque este tira de la bbdd en memoria H2 y nos dará el error 404 NOT FOUND cuando atacamos a la aplicación real delplegada que tira de MySql
+//        Beer beer = beerRepository.findAll().get(0);
+//        Id = beer.getId();
+        // SOLUCION
+        // En el @BeforeEach obtenemos el primer Id de la BBDD atacando la * BBDD Real * MySql
 
         // 1 . Llamando al método del controller
         // BeerDTO dto = beerController.getById(beer.getId());
@@ -169,8 +203,11 @@ class BeerControllerIT {
 
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         BeerDTO dto = webTestClient.get()
-                .uri(BeerController.BEER_PATH_ID, beer.getId())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                .uri(BeerController.BEER_PATH_ID, Id)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus().isOk()
@@ -179,7 +216,7 @@ class BeerControllerIT {
                 .getResponseBody();
 
         assertThat(dto).isNotNull();
-        assertThat(dto.getId()).isEqualTo(beer.getId());
+        assertThat(dto.getId()).isEqualTo(Id);
     }
 
     @Test
@@ -192,7 +229,10 @@ class BeerControllerIT {
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         webTestClient.get()
                 .uri(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus().isNotFound(); // .isOk() para que FALLE y ver el 404
@@ -208,9 +248,11 @@ class BeerControllerIT {
         Page<BeerDTO> dtos = beerController.list(null, null, false, 1, 2413);
         assertThat(dtos.getContent().size()).isEqualTo(1000);
 
-        // 2 . Utilizando MockMmv
+        // 2 . Utilizando MockMvc
         MvcResult mvcResult = mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .queryParam("pageSize", "2413"))   // V159
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.content.size()", is(1000))) // V159 - .andExpect(jsonPath("$.size()", is(2413))); - Moficamos a 100 ya que pusimos un límite
@@ -231,7 +273,9 @@ class BeerControllerIT {
                 .uri(uriBuilder -> uriBuilder.path(BeerController.BEER_PATH).queryParams(requestParams).build()) //.uri(uri.toUri())   // V159 - //.uri(BeerController.BEER_PATH)
                 .accept(MediaType.APPLICATION_JSON)
                 // V221
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .exchange()
                 .expectStatus().isOk()
                 .expectBody(new ParameterizedTypeReference<JacksonPage<BeerDTO>>() {}) //.expectBodyList(new ParameterizedTypeReference<BeerDTO>(){})
@@ -267,7 +311,9 @@ class BeerControllerIT {
         // SEGUNDO
         // Modificamos el @Service, BeerService para acepte el parámetro
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("name", "IPA")
                         .queryParam("pageSize", "1000"))           // Con MockMvc también se puede usar qeryParam con
                 .andExpect(status().isOk())
@@ -281,7 +327,9 @@ class BeerControllerIT {
 
         // 1 - Con MockMvc
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("style", BeerStyle.IPA.name())
                         .queryParam("pageSize", "1000"))            // Con MockMvc también se puede usar qeryParam con
                 .andExpect(status().isOk())
@@ -294,7 +342,9 @@ class BeerControllerIT {
     void testListByNameAndStyle() throws Exception {
         // 1 - Con MockMvc
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("name", "IPA")
                         .queryParam("style", BeerStyle.IPA.name())
                         .queryParam("pageSize", "1000"))            // Con MockMvc también se puede usar qeryParam con
@@ -310,7 +360,9 @@ class BeerControllerIT {
 
         // 1 - Con MockMvc
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("name", "IPA")
                         .queryParam("style", BeerStyle.IPA.name())
                         .queryParam("showInventory", "true")
@@ -328,7 +380,9 @@ class BeerControllerIT {
 
         // 1 - Con MockMvc
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("name", "IPA")
                         .queryParam("style", BeerStyle.IPA.name())
                         .queryParam("showInventory", "false")
@@ -345,7 +399,9 @@ class BeerControllerIT {
     void testListByNameAndStyleShowInventoryTruePage2() throws Exception {
         // 1 - Con MockMvc
         mockMvc.perform(get(BeerController.BEER_PATH)
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                         .queryParam("name", "IPA")
                         .queryParam("style", BeerStyle.IPA.name())
                         .queryParam("showInventory", "false")
@@ -361,7 +417,7 @@ class BeerControllerIT {
 
     // 101 - SI ejecutamos todos los test de esta clase puede que no se ejecuten * en orden *
     // Y que el testEmptyList() se ejecute antes que testList() dando lugar a un problema por incostencia de los datos
-    // Test splices @DataJpaTest - Spring boot automáticamente hace rollback, por lo tanto el test se ejecuta * dentro de una transaccion *
+    // Test slices @DataJpaTest - Spring boot automáticamente hace rollback, por lo tanto el test se ejecuta * dentro de una transaccion *
     // y vuelve al estado previo a ejecutarse
     // Al ir con SpringBootTest * este comportamiento hay que darselo con las anotaciones *
     // @Rollback      from org.springframework.test.annotation.
@@ -409,7 +465,7 @@ class BeerControllerIT {
     @Test
     void testSave() {
 
-        // Generamos toddos los campos que tienen * constrains * y que serán validados por marcar con @Validates el @RequestBody
+        // Generamos todos los campos que tienen * constrains * y que serán validados por marcar con @Validates el @RequestBody
         BeerDTO beerToSave = BeerDTO.builder()
                 .beerName("New Beer")
                 .beerStyle(BeerStyle.PALE_ALE)
@@ -426,7 +482,10 @@ class BeerControllerIT {
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         EntityExchangeResult<BeerDTO> exchangeResult = webTestClient.post()
                 .uri(BeerController.BEER_PATH)
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(beerToSave), BeerDTO.class)
@@ -441,7 +500,24 @@ class BeerControllerIT {
         String[] locationUUID = headers.getLocation().getPath().split("/");
         UUID savedUUID = UUID.fromString(locationUUID[4]);
 
-        Beer beerSaved = beerRepository.findById(savedUUID).get();
+        // PROBLEMA
+        // V242 Si hacemos el POST con el webTestClient estamos atacando a la * BBDD Real * por lo que no podemos ir luego con el beerRepository que ira a la H2
+        // Beer beerSaved = beerRepository.findById(savedUUID).get();
+        // SOLUCIÓN:
+        // Recuperarlo con el WebTesClient de nuevo
+        BeerDTO beerSaved = webTestClient.get()
+                .uri(BeerController.BEER_PATH_ID, savedUUID)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<BeerDTO>(){})
+                .returnResult()
+                .getResponseBody();
+
         assertThat(beerSaved).isNotNull();
     }
 
@@ -451,8 +527,8 @@ class BeerControllerIT {
     //@Transactional
     @Test
     void testUpdateById() {
-
-        Beer beer = beerRepository.findAll().get(0);
+        // V242 - COGEMOS EL * Id * con WebTestClient
+        // Beer beer = beerRepository.findAll().get(0);
         // BeerDTO beerToUpdate = beerMapper.beerToBeerDto(beer);
         // beerToUpdate.setId(null);
         // beerToUpdate.setVersion(null);
@@ -472,8 +548,11 @@ class BeerControllerIT {
 
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         EntityExchangeResult exchangeResult = webTestClient.put()
-                .uri(BeerController.BEER_PATH_ID, beer.getId())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                .uri(BeerController.BEER_PATH_ID, Id)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(beerToUpdate), BeerDTO.class)
@@ -482,7 +561,24 @@ class BeerControllerIT {
                 .expectBody()
                 .returnResult();
 
-        Beer updatedBeer = beerRepository.findById(beer.getId()).get();
+        // PROBLEMA
+        // V242 Si hacemos el POST con el webTestClient estamos atacando a la * BBDD Real * por lo que no podemos ir luego con el beerRepository que ira a la H2
+        // Beer updatedBeer = beerRepository.findById(beer.getId()).get();
+        // SOLUCIÓN:
+        // Recuperarlo con el WebTesClient de nuevo
+        BeerDTO updatedBeer = webTestClient.get()
+                .uri(BeerController.BEER_PATH_ID, Id)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
+                .accept(MediaType.APPLICATION_JSON)
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody(new ParameterizedTypeReference<BeerDTO>(){})
+                .returnResult()
+                .getResponseBody();
+
         assertThat(updatedBeer.getBeerName()).isEqualTo(beerName);
     }
 
@@ -507,7 +603,10 @@ class BeerControllerIT {
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         webTestClient.put()
                 .uri(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(beer), BeerDTO.class)
@@ -540,7 +639,10 @@ class BeerControllerIT {
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         webTestClient.delete()
                 .uri(BeerController.BEER_PATH_ID, UUID.randomUUID())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .exchange()
                 .expectStatus().isNotFound(); // .isOK(); //  Para que falle
@@ -549,6 +651,7 @@ class BeerControllerIT {
 
     @Test
     void testPathByIdThrowsConstraintViolationException() throws Exception {
+        // V242 - COGEMOS EL * Id * con WebTestClient
         Beer beer = beerRepository.findAll().get(0);
 
         String name = "Este es un tes con un beerName mayor de 50 para que se produzca una excepción de tipo ConstraintViolationException";
@@ -571,8 +674,11 @@ class BeerControllerIT {
 
         // 2 . Uitlizando WebTestClient para hacer una petición HTTP al endpoint del controller
         EntityExchangeResult exchangeResult = webTestClient.patch()
-                .uri(BeerController.BEER_PATH_ID, beer.getId())
-                .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                .uri(BeerController.BEER_PATH_ID, Id)
+                // V221
+                // .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
+                // V242 - El token lo generamos en el @Bean getForRealToken de OauthSecurityConfig
+                .header(HttpHeaders.AUTHORIZATION, "Bearer " + tokenJwt.get("access_token").asText())
                 .accept(MediaType.APPLICATION_JSON)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(Mono.just(beerToSave), BeerDTO.class)
@@ -594,7 +700,9 @@ class BeerControllerIT {
         beerMap.put("beerName", name);
 
         MvcResult mvcResult = mockMvc.perform(patch(BeerController.BEER_PATH_ID, beer.getId())
-                        .with(httpBasic(USERNAME, PASSWORD))
+                        // V242 - Sustituimos el Bascic Authentication por Oauth 2.0
+                        //.with(httpBasic(USERNAME, PASSWORD))
+                        .with(MockOauthToken.jwtRequestPostProcessor)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(beerMap)))
@@ -614,6 +722,8 @@ class BeerControllerIT {
         beerDTO.setBeerName("Updated Name");
 
         MvcResult result = mockMvc.perform(put(BeerController.BEER_PATH_ID, beer.getId())
+                        // PONIENDO LA CABECERA DE SEGURIDAD En vez de :
+                        //.with(httpBasic(USERNAME, PASSWORD))
                         .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)
@@ -626,6 +736,8 @@ class BeerControllerIT {
         beerDTO.setBeerName("Updated Name 2");
 
         MvcResult result2 = mockMvc.perform(put(BeerController.BEER_PATH_ID, beer.getId())
+                        // PONIENDO LA CABECERA DE SEGURIDAD En vez de :
+                        //.with(httpBasic(USERNAME, PASSWORD))
                         .header(HttpHeaders.AUTHORIZATION, BASIC_AUTH_HEADER)
                         .contentType(MediaType.APPLICATION_JSON)
                         .accept(MediaType.APPLICATION_JSON)

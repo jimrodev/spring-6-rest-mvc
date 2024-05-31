@@ -10,6 +10,7 @@ import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+
 public class BeerCsvServiceImplTest {
 
     BeerCsvService beerCsvService = new BeerCsvServiceImpl();

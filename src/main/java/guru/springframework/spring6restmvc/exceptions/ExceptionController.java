@@ -69,7 +69,7 @@ public class ExceptionController {
 
     // Video 112
     // Aunque tengamos las constraints @NotNull, @NotBlanck,... establecidas en los DTO, Entities, etc, estas no se valida nada hasta que anotemos con @Validated el RequestBody en el método del controller
-    // @Validation le decimos a spring MVC que el objeto DTO, Entity, etc debe ser validado acorde a las constrains definidas en él
+    // @Validated le decimos a spring MVC que el objeto DTO, Entity, etc debe ser validado acorde a las constrains definidas en él
     @ExceptionHandler(MethodArgumentNotValidException.class)
     protected ResponseEntity handlerArgumentNotValidException(MethodArgumentNotValidException exception){
 

@@ -18,7 +18,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
 
-// debido a que usamos @DataJpaTest * splice * que sólo carga el contexto que sólo carga aquellos @Beans que implementan JPA,
+// debido a que usamos @DataJpaTest * slice * que sólo carga el contexto que sólo carga aquellos @Beans que implementan JPA,
 // MISMO ERROR EN * BootstrapDataTest * Ver detalle de la soluciones [1,2,3,4] para cargar el contexto EXTRICTAMENTE NECESARIO
 // SOLUCIÓN 4 - Importar las clases que necesitamos, en nuestro caso BootstrapData, BeerCsvServiceImpl
 // Que son necesarias para llenar la bbdd en memoria H2, que es la que usamos en las pruebas.
@@ -107,7 +107,7 @@ class BeerRepositoryTest {
         // Actual   :0
         // NO SE ESTÁ EJECUTANDO el código del @Bean BootstrapData y la bbdd está vacía (En este caso H2)
         //
-        // Es debido a que usamos @DataJpaTest * splice * que sólo carga el contexto que sólo carga aquellos @Beans que implementan JPA,
+        // Es debido a que usamos @DataJpaTest * slice * que sólo carga el contexto que sólo carga aquellos @Beans que implementan JPA,
         // MISMO ERROR EN * BootstrapDataTest * Ver detalle de la soluciones [1,2,3,4] para cargar el contexto EXTRICTAMENTE NECESARIO
         // SOLUCIÓN 4 - Importar las clases que necesitamos, en nuestro caso
         // VIDEO - 159 - RETURN - Page<BeerDTO>
