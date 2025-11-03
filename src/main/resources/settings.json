@@ -1,0 +1,94 @@
+{
+    "github.copilot.nextEditSuggestions.enabled": true,
+    "workbench.colorTheme": "Default High Contrast",
+    "java.completion.importOrder": ["java", "javax", "org", "com"],
+    "java.saveActions.organizeImports": true,
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "terminal.integrated.profiles.windows": {
+        "PowerShell": {
+            "source": "PowerShell",
+            "args": ["-ExecutionPolicy", "Bypass", "-NoLogo", "-File", "C:\\Users\\n64013\\Documents\\PowerShell\\Microsoft.PowerShell_profile.ps1"]
+        },
+        "Git Bash": {
+            "path": "C:\\Program Files\\Git\\bin\\bash.exe",
+            "args": ["--login"]
+        },
+        "Python": {
+            "path": "C:/Program Files/Python313/python.exe",
+            "args": ["-m", "IPython", "--colors=Linux", "--no-banner", "-i", "C:\\Users\\n64013\\python_startup.py"],
+            "icon": "python",
+            "color": "terminal.ansiCyan"
+        }
+    },
+    "terminal.integrated.defaultProfile.windows": "Git Bash",
+    "terminal.integrated.env.windows": {
+        "MAVEN_ARGS": "-gs C:\\Users\\n64013\\.m2\\settings.xml -s C:\\Users\\n64013\\.m2\\settings.xml",
+        "MAVEN_OPTS": "-Dmaven.wagon.http.ssl.insecure=true -Dmaven.wagon.http.ssl.allowall=true -Dmaven.wagon.http.ssl.ignore.validity.dates=true",
+        "MAVEN_REPOSITORY": "C:\\Users\\n64013\\.m2\\repository",
+        "M2_HOME": "C:\\Program Files (x86)\\apache-maven-3.9.0",
+        "PYTHONSTARTUP": "C:\\Users\\n64013\\python_startup.py"
+    },
+    // ==================== JAVA CONFIGURATION ====================
+    "java.configuration.maven.globalSettings": "c:\\Users\\n64013\\.m2\\settings.xml",
+    "java.configuration.maven.userSettings": "c:\\Users\\n64013\\.m2\\settings.xml",
+    "java.import.maven.enabled": true,
+    "java.compile.nullAnalysis.mode": "automatic",
+    // ==================== END JAVA CONFIGURATION ================
+    
+    // ==================== PYTHON CONFIGURATION ====================
+    // Python Interpreter
+    "python.defaultInterpreterPath": "python",
+    "python.terminal.activateEnvironment": true,
+    
+    // Python Language Server (Pylance)
+    "python.analysis.typeCheckingMode": "basic",
+    "python.analysis.autoImportCompletions": true,
+    "python.analysis.autoSearchPaths": true,
+    
+    // Formatting with Black
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit"
+        },
+        "editor.defaultFormatter": "ms-python.black-formatter"
+    },
+    
+    // Black Formatter Settings
+    "black-formatter.args": [
+        "--line-length=88",
+        "--skip-string-normalization"
+    ],
+    
+    // isort (Import Sorting)
+    "isort.args": [
+        "--profile=black",
+        "--line-length=88"
+    ],
+    
+    // Flake8 (Linting)
+    "flake8.args": [
+        "--max-line-length=88",
+        "--extend-ignore=E203,W503"
+    ],
+    
+    // Pylint (Alternative Linter - disabled by default)
+    "pylint.args": [
+        "--max-line-length=88",
+        "--disable=C0114,C0116"
+    ],
+    
+    // Testing
+    "python.testing.pytestEnabled": true,
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestArgs": [
+        "."
+    ],
+    
+    // Jupyter Notebooks
+    "jupyter.askForKernelRestart": false,
+    "jupyter.interactiveWindow.creationMode": "perFile"
+    // ==================== END PYTHON CONFIGURATION ================
+}
